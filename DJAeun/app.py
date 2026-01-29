@@ -94,18 +94,19 @@ if user_input := st.chat_input("의약품에 대해 궁금한 점을 질문해�
         # 출처 표시
         sources = []
         if source_drugs:
-            with st.expander("📋 참고 자료 보기"):
+            with st.expander("📋 관련 의약품 정보"):
                 for drug in source_drugs:
                     source_info = {
                         "item_name": drug.get("item_name", ""),
                         "entp_name": drug.get("entp_name", ""),
                         "item_seq": drug.get("item_seq", ""),
+                        "main_item_ingr": drug.get("main_item_ingr", ""),
                     }
                     sources.append(source_info)
                     st.text(
                         f"{source_info['item_name']} | "
-                        f"업체: {source_info['entp_name']} | "
-                        f"품목코드: {source_info['item_seq']}"
+                        f"성분: {source_info['main_item_ingr']} | "
+                        f"업체: {source_info['entp_name']}"
                     )
 
     # 어시스턴트 메시지 저장

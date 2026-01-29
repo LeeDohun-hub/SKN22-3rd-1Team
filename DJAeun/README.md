@@ -53,7 +53,7 @@
 | 분류 | 기술 | 설명 |
 |:---:|:---:|:---|
 | 🖥️ **UI** | Streamlit | 인터랙티브 웹 애플리케이션 |
-| 🤖 **LLM** | GPT-4.1-nano | 질문 분류 및 답변 생성 |
+| 🤖 **LLM** | GPT-4.1-nano / GPT-4.1-mini | 질문 분류 / 답변 생성 |
 | 🗄️ **Vector DB** | Supabase (PostgreSQL) | pgvector 기반 벡터 저장소 |
 | 🔗 **Orchestration** | LangChain (LCEL) | RAG 파이프라인 구성 |
 | 📊 **Tracing** | LangSmith | LLM 호출 모니터링 |
@@ -115,7 +115,7 @@ flowchart TD
     H --> I
     
     I --> |ILIKE 쿼리| J[drugs 테이블 검색]
-    J --> K[상위 3개 결과 반환]
+    J --> K[상위 5개 결과 반환]
     
     K --> L{💬 3단계: 답변 생성}
     L --> |LLM 호출 #2| M[실시간 스트리밍 답변]
@@ -237,8 +237,8 @@ streamlit run app.py
 | 항목 | 값 | 설명 |
 |:---:|:---:|:---|
 | 🤖 **분류기 모델** | `gpt-4.1-nano` | 질문 의도 파악 |
-| 💬 **답변 생성 모델** | `gpt-4.1-nano` | 최종 답변 생성 |
-| 🔍 **검색 결과 수 (k)** | `3` | 상위 k개 문서 반환 |
+| 💬 **답변 생성 모델** | `gpt-4.1-mini` | 최종 답변 생성 |
+| 🔍 **검색 결과 수 (k)** | `5` | 상위 k개 문서 반환 |
 | 🌡️ **Temperature** | `0.0` | 결정적 답변 생성 |
 
 ---

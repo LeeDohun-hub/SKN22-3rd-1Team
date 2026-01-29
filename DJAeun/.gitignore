@@ -5,4 +5,8 @@ __pycache__/
 .streamlit/
 data/raw
 .claude/
-temp.md
+z_git_diff.md
+z_structure.md
+z_warning.md
+z_temp.md
+benchmark/
