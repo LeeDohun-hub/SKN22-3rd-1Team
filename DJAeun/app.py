@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
 from src.chain.rag_chain import build_rag_chain_with_sources, prepare_context, stream_answer
 from src.config import CLASSIFIER_MODEL, LLM_MODEL
@@ -15,6 +16,87 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "chain" not in st.session_state:
     st.session_state.chain = build_rag_chain_with_sources()
+if "disclaimer_accepted" not in st.session_state:
+    st.session_state.disclaimer_accepted = False
+
+
+# 면책동의 다이얼로그
+@st.dialog(title="⚠️ 면책사항 동의", width="large")
+def disclaimer_dialog():
+    """첫 진입 시 표시되는 면책사항 동의 팝업"""
+    st.markdown(
+        """
+        ### 📋 서비스 이용 전 안내사항
+        
+        이 시스템은 **식품의약품안전처 공공데이터**를 기반으로 일반적인 의약품 정보를 제공합니다.
+        
+        ---
+        
+        #### ⚠️ 중요 주의사항
+        
+        🔴 이 시스템의 응답은 AI가 공공 데이터를 기반으로 생성한 것으로, **정확성을 보장하지 않습니다.**
+        
+        🔴 복약지시나 진단으로 해석될 수 있는 답변이 출력될 경우, 이는 **시스템 오류이며 의도된 것이 아닙니다.**
+        
+        🔴 **모든 의약품 복용 및 건강 관련 결정은 반드시 의사 또는 약사와 상담 후 진행하세요.**
+        
+        🔴 본 시스템 사용으로 인한 **어떠한** 직접적, 간접적 **피해**에 대해서도 **책임지지 않습니다.**
+        
+        ---
+        
+        위 내용을 이해하고 동의하시면 서비스를 이용하실 수 있습니다.
+        """
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ 동의합니다", type="primary", use_container_width=True):
+            st.session_state.disclaimer_accepted = True
+            st.rerun()
+    with col2:
+        if st.button("❌ 거부합니다", use_container_width=True):
+            # 거부 시 Google로 리다이렉트 (브라우저에서 window.close()는 제한적)
+            st.markdown(
+                """
+                <meta http-equiv="refresh" content="0; url=https://www.google.com">
+                <script>window.location.href = 'https://www.google.com';</script>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.stop()
+
+
+# 면책동의 확인 - 동의하지 않으면 팝업 표시 후 중단
+if not st.session_state.disclaimer_accepted:
+    disclaimer_dialog()
+    st.stop()
+
+
+# 클립보드 복사 버튼 생성 함수
+def copy_button(text: str, button_text: str):
+    """클릭 시 텍스트를 클립보드에 복사하는 버튼 생성"""
+    html_code = f"""
+    <button onclick="navigator.clipboard.writeText('{text}').then(() => {{
+        this.innerHTML = '✅ 복사됨!';
+        setTimeout(() => {{ this.innerHTML = '{button_text}'; }}, 1500);
+    }})" style="
+        padding: 8px 12px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        width: 100%;
+        margin: 4px 0;
+        transition: transform 0.2s, box-shadow 0.2s;
+    " onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 4px 12px rgba(102,126,234,0.4)';"
+       onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none';">
+        {button_text}
+    </button>
+    """
+    components.html(html_code, height=50)
+
 
 # 사이드바
 with st.sidebar:
@@ -23,13 +105,13 @@ with st.sidebar:
     st.text(
         """
     이 시스템은 식품의약품안전처 공공데이터의 의약품 정보를 제공합니다.
-
-    질문 예시:
-    - 타이레놀의 효능은 무엇인가요?
-    - 아세트아미노펜이 포함된 약은?
-    - 두통에 효과있는 약은?
     """
     )
+
+    st.text("📝 질문 예시 (클릭하여 복사):")
+    copy_button("타이레놀의 효능은 무엇인가요?", "💊 타이레놀의 효능은 무엇인가요?")
+    copy_button("아세트아미노펜이 포함된 약은?", "🧪 아세트아미노펜이 포함된 약은?")
+    copy_button("두통에 효과있는 약은?", "🩹 두통에 효과있는 약은?")
     st.caption(f"분류기: {CLASSIFIER_MODEL}")
     st.caption(f"답변 생성: {LLM_MODEL}")
     st.caption("데이터: 식품의약품안전처 e약은요 + 허가정보")
