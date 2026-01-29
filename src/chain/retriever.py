@@ -51,36 +51,10 @@ def search_drugs(category: str, keyword: str) -> list[dict]:
 
 
 def format_drug_info(row: dict) -> str:
-    """drugs 테이블의 행 1건을  
-    HTML 태그 및 마크다운 취소선 형식만 제거."""
-    import re
-    
-    def clean_value(value):
-        """값에서 HTML 태그 및 마크다운 취소선만 제거."""
-        if not value:
-            return ""
-        value = str(value).strip()
-        
-        # 1단계: HTML 태그 제거
-        value = re.sub(r"<[^>]+>", "", value)
-        
-        # 2단계: 마크다운 취소선 형식만 제거 (~~텍스트~~)
-        value = re.sub(r"~~[^~]+~~", "", value)
-        
-        # 3단계: HTML 엔티티 제거
-        value = value.replace("&nbsp;", " ")
-        value = value.replace("&lt;", "<")
-        value = value.replace("&gt;", ">")
-        value = value.replace("&amp;", "&")
-        
-        # 4단계: 공백 정규화
-        value = re.sub(r"\s+", " ", value)
-        
-        return value.strip()
-    
+    """drugs 테이블의 행 1건을 읽기 좋은 텍스트로 포맷합니다."""
     lines = []
     for key, label in FIELD_LABELS.items():
-        value = clean_value(row.get(key, ""))
+        value = (row.get(key) or "").strip()
         if value:
             lines.append(f"[{label}] {value}")
     return "\n".join(lines)

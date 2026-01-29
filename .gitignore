@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.streamlit/
+data/raw
+.claude/
+z_git_diff.md
+z_structure.md
+z_warning.md
+z_temp.md
+benchmark/

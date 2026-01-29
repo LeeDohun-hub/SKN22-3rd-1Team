@@ -64,7 +64,7 @@
 
 ```
 📦 SKN22-3rd-1Team/
-├── 🚀 app.py                      # Streamlit 웹 애플리케이션 (스트리밍 지원)
+├── 🚀 app.py                      # Streamlit 웹 앱 (면책동의 팝업, 클립보드 복사)
 ├── 📋 requirements.txt            # Python 의존성
 ├── 🔐 .env                        # 환경 변수 (API 키)
 │
@@ -173,7 +173,7 @@ python scripts/ingest_to_supabase.py
 streamlit run app.py
 ```
 
-🌐 브라우저에서 `http://localhost:8501`로 접속합니다.
+🌐 브라우저에서 `http://localhost:8501`로 접속 → **면책동의 팝업** 확인 후 서비스 이용.
 
 ---
 
@@ -238,7 +238,7 @@ streamlit run app.py
 |:---:|:---:|:---|
 | 🤖 **분류기 모델** | `gpt-4.1-nano` | 질문 의도 파악 |
 | 💬 **답변 생성 모델** | `gpt-4.1-mini` | 최종 답변 생성 |
-| 🔍 **검색 결과 수 (k)** | `3` | 상위 k개 문서 반환 |
+| 🔍 **검색 결과 수 (k)** | `5` | 상위 k개 문서 반환 |
 | 🌡️ **Temperature** | `0.0` | 결정적 답변 생성 |
 
 ---

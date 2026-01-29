@@ -92,39 +92,8 @@ if user_input := st.chat_input("의약품에 대해 궁금한 점을 질문해�
                 cat_label = category_labels.get(result["category"], result["category"])
                 st.caption(f"🔍 검색: {cat_label} → \"{result['keyword']}\"")
 
-            # Top 5 결과 표시
+            # 출처 정보 저장 (Top 5 표시는 제거)
             if source_drugs:
-                st.subheader("📋 해당 의약품 정보 (Top 5)")
-                for idx, drug in enumerate(source_drugs, 1):
-                    with st.expander(f"{idx}. {drug.get('item_name', '정보없음')} - {drug.get('entp_name', '')}"):
-                        # 주요 정보만 간단히 표시 (text로만 표시 - markdown 비활성화)
-                        cols = st.columns(2)
-                        with cols[0]:
-                            st.text(f"제품명: {drug.get('item_name', '')}")
-                            st.text(f"업체: {drug.get('entp_name', '')}")
-                            st.text(f"품목코드: {drug.get('item_seq', '')}")
-                        with cols[1]:
-                            st.text(f"성상: {drug.get('chart', '-')}")
-                            st.text(f"주성분: {drug.get('main_item_ingr', '-')}")
-                            st.text(f"구분: {drug.get('spclty_pblc', '-')}")
-                        
-                        # 상세 정보 (모두 text로 표시, 이스케이프 문자 처리)
-                        st.divider()
-                        if drug.get('efcy_qesitm'):
-                            st.subheader("효능", divider=False)
-                            # \n을 실제 줄바꿈으로 변환
-                            st.text(drug.get('efcy_qesitm', '').replace('\\n', '\n'))
-                        if drug.get('use_method_qesitm'):
-                            st.subheader("용법·용량", divider=False)
-                            st.text(drug.get('use_method_qesitm', '').replace('\\n', '\n'))
-                        if drug.get('se_qesitm'):
-                            st.subheader("부작용", divider=False)
-                            st.text(drug.get('se_qesitm', '').replace('\\n', '\n'))
-                        if drug.get('atpn_qesitm'):
-                            st.subheader("주의사항", divider=False)
-                            st.text(drug.get('atpn_qesitm', '').replace('\\n', '\n'))
-                
-                # 출처 정보 저장
                 sources = []
                 for drug in source_drugs:
                     source_info = {
