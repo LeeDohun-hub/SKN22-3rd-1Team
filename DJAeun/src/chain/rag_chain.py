@@ -1,4 +1,5 @@
 import json
+from typing import Generator
 
 from langchain_core.runnables import RunnableLambda
 from langchain_openai import ChatOpenAI
@@ -83,3 +84,37 @@ def build_rag_chain():
 def build_rag_chain_with_sources():
     """Streamlit용 체인 — answer + source_drugs를 반환합니다."""
     return build_rag_chain()
+
+
+def _get_streaming_generator() -> ChatOpenAI:
+    """스트리밍 지원 답변 생성용 LLM."""
+    return ChatOpenAI(
+        model=LLM_MODEL,
+        temperature=LLM_TEMPERATURE,
+        openai_api_key=OPENAI_API_KEY,
+        streaming=True,
+    )
+
+
+def prepare_context(question: str) -> dict:
+    """분류 → 검색까지 수행하고 컨텍스트를 반환합니다."""
+    classified = _classify(question)
+    searched = _search(classified)
+    prompt_messages = ANSWER_PROMPT.format_messages(
+        question=searched["question"],
+        category=searched["category"],
+        keyword=searched["keyword"],
+        context=searched["context"],
+    )
+    return {
+        **searched,
+        "prompt_messages": prompt_messages,
+    }
+
+
+def stream_answer(prepared: dict) -> Generator[str, None, None]:
+    """준비된 컨텍스트로 답변을 스트리밍합니다."""
+    llm = _get_streaming_generator()
+    for chunk in llm.stream(prepared["prompt_messages"]):
+        if chunk.content:
+            yield chunk.content
