@@ -237,6 +237,20 @@ for message in st.session_state.messages:
             # 출력 전에 텍스트를 가공하여 간격을 벌립니다.
             formatted_content = format_answer(message["content"])
             st.markdown(f'<div class="chat-bubble">{formatted_content}</div>', unsafe_allow_html=True)
+
+            if message.get("dur_data"):
+                with st.expander("⚠️ 병용금지 주의 약물 목록", expanded=False):
+                    for ingredient, contraindications in message["dur_data"].items():
+                        st.markdown(f"**[{ingredient}]** 과 함께 복용하면 안 되는 성분:")
+                        seen_mixtures = set()
+                        for item in contraindications:
+                            mixture = item.get("MIXTURE_INGR_KOR_NAME") or item.get("mixture_ingr_kor_name", "")
+                            reason = item.get("PROHBT_CONTENT") or item.get("prohbt_content", "")
+                            if mixture and mixture not in seen_mixtures:
+                                seen_mixtures.add(mixture)
+                                st.markdown(f"- {mixture}: {reason}")
+                        st.divider()
+
             if "sources" in message and message["sources"]:
                 with st.expander("📋 참고 자료 보기"):
                     for src in message["sources"]:
@@ -280,15 +294,32 @@ if user_input := st.chat_input("의약품에 대해 궁금한 점을 질문해�
         if prepared.get("category") and prepared.get("keyword"):
             st.caption(f"🔍 검색: {prepared['category']} → \"{prepared['keyword']}\"")
 
+        # 병용금지 경고 UI
+        dur_data = prepared.get("dur_data", {})
+
+        # 각 성분별 병용금지 약물 목록
+        if dur_data:
+            with st.expander("⚠️ 병용금지 주의 약물 목록", expanded=False):
+                for ingredient, contraindications in dur_data.items():
+                    st.markdown(f"**[{ingredient}]** 과 함께 복용하면 안 되는 성분:")
+                    seen_mixtures = set()
+                    for item in contraindications:
+                        mixture = item.get("MIXTURE_INGR_KOR_NAME") or item.get("mixture_ingr_kor_name", "")
+                        reason = item.get("PROHBT_CONTENT") or item.get("prohbt_content", "")
+                        if mixture and mixture not in seen_mixtures:
+                            seen_mixtures.add(mixture)
+                            st.markdown(f"- {mixture}: {reason}")
+                    st.divider()
+
         # 소스 데이터 수집
         sources = []
         if source_drugs:
             with st.expander("📋 관련 의약품 정보"):
                 for drug in source_drugs:
                     source_info = {
-                        "item_name": drug.get("item_name", ""), 
-                        "entp_name": drug.get("entp_name", ""), 
-                        "item_seq": drug.get("item_seq", ""), 
+                        "item_name": drug.get("item_name", ""),
+                        "entp_name": drug.get("entp_name", ""),
+                        "item_seq": drug.get("item_seq", ""),
                         "main_item_ingr": drug.get("main_item_ingr", "")
                     }
                     sources.append(source_info)
@@ -299,9 +330,14 @@ if user_input := st.chat_input("의약품에 대해 궁금한 점을 질문해�
     # ---------------------------------------------------------
     # (1) 사용자 질문 저장
     st.session_state.messages.append({"role": "user", "content": user_input})
-    
+
     # (2) 어시스턴트 답변 저장 (이미 위에서 선언된 full_answer와 sources 사용)
-    st.session_state.messages.append({"role": "assistant", "content": full_answer, "sources": sources})
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": full_answer,
+        "sources": sources,
+        "dur_data": dur_data,
+    })
     
     # (3) 화면 새로고침 (이걸 해야 회색 잔상이 사라지고 상단 for문이 깔끔하게 다시 그립니다)
     st.rerun()
