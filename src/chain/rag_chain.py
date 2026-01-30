@@ -5,7 +5,15 @@ from langchain_core.runnables import RunnableLambda
 from langchain_openai import ChatOpenAI
 
 from src.chain.prompts import ANSWER_PROMPT, CLASSIFIER_PROMPT
-from src.chain.retriever import format_search_results, search_drugs
+from src.chain.retriever import (
+    check_mutual_contraindication,
+    extract_ingredients,
+    format_dur_results,
+    format_mutual_warnings,
+    format_search_results,
+    search_drugs,
+    search_dur_for_ingredients,
+)
 from src.config import CLASSIFIER_MODEL, LLM_MODEL, LLM_TEMPERATURE, OPENAI_API_KEY
 
 
@@ -44,13 +52,31 @@ def _classify(question: str) -> dict:
 
 
 def _search(inputs: dict) -> dict:
-    """분류 결과를 바탕으로 Supabase drugs 테이블을 검색합니다."""
+    """분류 결과를 바탕으로 Supabase drugs 테이블을 검색하고 DUR 정보를 수집합니다."""
+    # 1. drugs 테이블 검색 (기존)
     rows = search_drugs(inputs["category"], inputs["keyword"])
     context = format_search_results(rows)
+
+    # 2. 검색된 약품에서 성분명 추출
+    ingredients = extract_ingredients(rows)
+
+    # 3. 각 성분에 대한 DUR 병용금지 정보 검색
+    dur_data = search_dur_for_ingredients(ingredients)
+    dur_context = format_dur_results(dur_data)
+
+    # 4. 검색된 약품들 간 상호 병용금지 체크
+    mutual_warnings = check_mutual_contraindication(ingredients)
+    mutual_context = format_mutual_warnings(mutual_warnings)
+
     return {
         **inputs,
         "context": context,
         "source_drugs": rows,
+        "ingredients": ingredients,
+        "dur_data": dur_data,
+        "dur_context": dur_context,
+        "mutual_warnings": mutual_warnings,
+        "mutual_context": mutual_context,
     }
 
 
@@ -100,11 +126,18 @@ def prepare_context(question: str) -> dict:
     """분류 → 검색까지 수행하고 컨텍스트를 반환합니다."""
     classified = _classify(question)
     searched = _search(classified)
+
+    # DUR 컨텍스트 조합 (일반 병용금지 + 상호 병용금지)
+    combined_dur_context = searched["dur_context"]
+    if searched["mutual_context"]:
+        combined_dur_context += "\n\n" + searched["mutual_context"]
+
     prompt_messages = ANSWER_PROMPT.format_messages(
         question=searched["question"],
         category=searched["category"],
         keyword=searched["keyword"],
         context=searched["context"],
+        dur_context=combined_dur_context,
     )
     return {
         **searched,
