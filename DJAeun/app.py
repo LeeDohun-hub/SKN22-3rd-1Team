@@ -1,4 +1,5 @@
 """FDA 의약품 정보 Q&A - Streamlit 앱"""
+import re
 import streamlit as st
 from src.chain.rag_chain import prepare_context, stream_answer
 from src.config import CLASSIFIER_MODEL, LLM_MODEL
@@ -25,6 +26,45 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# 성분 섹션 후처리
+def _truncate_ingredient_section(answer: str) -> str:
+    # 관련 성분 섹션 찾기
+    pattern = r"(###\s*💊\s*관련 성분 및 효능\n)(.*?)(?=\n###|\Z)"
+    match = re.search(pattern, answer, flags=re.DOTALL)
+    if not match:
+        return answer
+
+    header = match.group(1)
+    body = match.group(2)
+    lines = [line for line in body.strip().split('\n') if line.strip()]
+    
+    # 성분 라인 추출 (- ** 로 시작하는 라인)
+    ingredient_lines = [line for line in lines if line.strip().startswith("- **")]
+    
+    # 성분이 4개 미만이면 그대로 반환
+    if len(ingredient_lines) < 4:
+        return answer
+    
+    first_three = ingredient_lines[:3]
+    remaining = ingredient_lines[3:]
+    
+    # 새로운 본문 구성: 처음 3개 성분만
+    new_body = "\n".join(first_three)
+    
+    # 나머지 성분을 expander 마커와 함께 추가
+    expander_block = (
+        f"\n\n**📋 나머지 성분 목록 (외 {len(remaining)}종)**\n\n"
+        + "\n".join(remaining)
+        + "\n\n---\n"
+    )
+    
+    # 원본 답변 재구성
+    before_section = answer[:match.start()]
+    after_section = answer[match.end():]
+    
+    updated = before_section + header + new_body + expander_block + after_section
+    return updated
 
 # 세션 상태 초기화
 if "messages" not in st.session_state:
@@ -84,8 +124,29 @@ st.caption("OpenFDA 데이터베이스 실시간 검색 기반")
 # 대화 기록 표시
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"], unsafe_allow_html=True)
-
+        content = message["content"]
+        
+        # 나머지 성분 부분을 expander로 분리
+        if "**📋 나머지 성분 목록" in content:
+            parts = content.split("**📋 나머지 성분 목록")
+            st.markdown(parts[0], unsafe_allow_html=True)
+            
+            # expander 부분 추출 및 렌더링
+            expander_content = "**📋 나머지 성분 목록" + parts[1].split("---")[0]
+            remaining_content = "---".join(parts[1].split("---")[1:]) if "---" in parts[1] else ""
+            
+            # 제목과 개수 추출
+            title_line = expander_content.split("\n")[0]
+            items = "\n".join([line for line in expander_content.split("\n")[1:] if line.strip()])
+            
+            with st.expander(title_line):
+                st.markdown(items, unsafe_allow_html=True)
+            
+            if remaining_content.strip():
+                st.markdown(remaining_content, unsafe_allow_html=True)
+        else:
+            st.markdown(content, unsafe_allow_html=True)
+        
         # 출처 정보 표시
         if message["role"] == "assistant" and "search_info" in message:
             info = message["search_info"]
@@ -135,10 +196,8 @@ if "pending_question" in st.session_state:
             full_response += chunk
             response_placeholder.markdown(full_response + "▌", unsafe_allow_html=True)
 
+        full_response = _truncate_ingredient_section(full_response)
         response_placeholder.markdown(full_response, unsafe_allow_html=True)
-
-        # 검색 정보 표시
-        st.caption(f"🔍 검색: {context_data['category']} → \"{context_data['keyword']}\"")
 
     # 어시스턴트 메시지 저장
     st.session_state.messages.append({
@@ -180,10 +239,8 @@ if user_input := st.chat_input("약품이나 증상에 대해 질문하세요...
             full_response += chunk
             response_placeholder.markdown(full_response + "▌", unsafe_allow_html=True)
 
+        full_response = _truncate_ingredient_section(full_response)
         response_placeholder.markdown(full_response, unsafe_allow_html=True)
-
-        # 검색 정보 표시
-        st.caption(f"🔍 검색: {context_data['category']} → \"{context_data['keyword']}\"")
 
     # 어시스턴트 메시지 저장
     st.session_state.messages.append({
