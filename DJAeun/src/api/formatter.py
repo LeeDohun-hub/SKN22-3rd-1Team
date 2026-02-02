@@ -25,7 +25,7 @@ def _extract_value(data: dict, key: str) -> Optional[str]:
     """딕셔너리에서 값 추출 (리스트면 첫 번째 요소, 중첩 openfda 필드 처리)"""
     # openfda 중첩 필드 확인
     if key in ["brand_name", "generic_name", "manufacturer_name"]:
-        openfda = data.get("openfda", {})
+        openfda = data.get("openfda") or {}
         value = openfda.get(key, [])
     else:
         value = data.get(key, [])
