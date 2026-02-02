@@ -2,7 +2,7 @@
 from typing import Generator
 from langchain_openai import ChatOpenAI
 
-from src.chain.prompts_unified import CLASSIFIER_PROMPT, ANSWER_PROMPT as GENERATOR_PROMPT
+from src.chain.prompts import CLASSIFIER_PROMPT, ANSWER_PROMPT as GENERATOR_PROMPT
 from src.api.openfda_client import (
     search_by_brand_name,
     search_by_generic_name,
@@ -56,6 +56,10 @@ def classify(question: str) -> dict:
 
 def search_openfda(category: str, keyword: str) -> tuple[str, list[dict]]:
     """분류 결과에 따라 OpenFDA API 호출"""
+    # invalid 카테고리 처리
+    if category == "invalid":
+        return "(invalid query)", []
+    
     if category == "brand_name":
         results = search_by_brand_name(keyword)
     elif category == "generic_name":
