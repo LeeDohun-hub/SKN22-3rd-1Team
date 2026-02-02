@@ -34,12 +34,159 @@ def _get_client():
 
 
 def search_drugs(category: str, keyword: str) -> list[dict]:
-    """drugs 테이블에서 category에 해당하는 컬럼을 keyword로 ILIKE 검색합니다."""
+    """drugs 테이블에서 category에 해당하는 컬럼을 keyword로 ILIKE 검색합니다.
+    
+    효능(efficacy) 검색의 경우, 검색 키워드를 여러 형태로 변환하여 매칭 확률을 높입니다:
+    - 원본 키워드
+    - 공백 제거
+    
+    성분명(ingredient) 검색의 경우:
+    - main_item_ingr 컬럼은 "[코드]성분명|[코드]성분명|..." 형식이므로 유연한 매칭 필요
+    """
     column = CATEGORY_COLUMN_MAP.get(category)
     if not column:
         return []
 
     client = _get_client()
+    
+    # 효능 검색: 여러 패턴으로 재시도
+    if category == "efficacy":
+        # 여러 검색 패턴 생성
+        search_patterns = [
+            keyword,  # 원본 그대로
+            keyword.strip(),  # 앞뒤 공백 제거
+        ]
+        
+        # 공백을 제거한 버전 추가 (예: "소화 불량" → "소화불량")
+        no_space = keyword.replace(" ", "")
+        if no_space != keyword:
+            search_patterns.append(no_space)
+        
+        # 각 패턴으로 검색하여 결과 통합
+        all_results = []
+        seen_ids = set()
+        
+        for pattern in search_patterns:
+            try:
+                res = (
+                    client.table("drugs")
+                    .select("*")
+                    .ilike(column, f"%{pattern}%")
+                    .limit(SEARCH_LIMIT)
+                    .execute()
+                )
+                for item in (res.data or []):
+                    item_id = item.get("item_seq")
+                    if item_id not in seen_ids:
+                        all_results.append(item)
+                        seen_ids.add(item_id)
+            except Exception as e:
+                print(f"[효능 검색 오류] 패턴 '{pattern}' 검색 중 오류: {e}")
+                continue
+        
+        return all_results
+    
+    # 성분명(ingredient) 검색: 유연한 매칭
+    elif category == "ingredient":
+        # 검색 패턴 생성 함수
+        def generate_patterns(kw: str) -> list[str]:
+            patterns = [kw.strip()]  # 원본
+            
+            # 공백 제거
+            no_space = kw.replace(" ", "").strip()
+            if no_space != patterns[0]:
+                patterns.append(no_space)
+            
+            # 괄호와 특수문자 제거
+            cleaned = kw.replace(" ", "").replace("(", "").replace(")", "").replace("-", "").strip()
+            if cleaned not in patterns:
+                patterns.append(cleaned)
+            
+            # 영문 소문자 변환 (예: APAP → apap)
+            lower = kw.lower().strip()
+            if lower not in patterns:
+                patterns.append(lower)
+            
+            return patterns
+        
+        search_patterns = generate_patterns(keyword)
+        
+        # 각 패턴으로 검색하여 결과 통합
+        all_results = []
+        seen_ids = set()
+        
+        for pattern in search_patterns:
+            if not pattern:
+                continue
+            try:
+                res = (
+                    client.table("drugs")
+                    .select("*")
+                    .ilike(column, f"%{pattern}%")
+                    .limit(SEARCH_LIMIT)
+                    .execute()
+                )
+                for item in (res.data or []):
+                    item_id = item.get("item_seq")
+                    if item_id not in seen_ids:
+                        all_results.append(item)
+                        seen_ids.add(item_id)
+            except Exception as e:
+                print(f"[성분명 검색 오류] 패턴 '{pattern}' 검색 중 오류: {e}")
+                continue
+        
+        # drugs 테이블에서 못 찾은 경우, DUR 테이블에서 성분명 검색 (영문/한글 모두)
+        if not all_results:
+            print(f"[성분명 폴백] drugs 테이블에서 발견되지 않음. DUR 테이블 검색 중...")
+            
+            for pattern in search_patterns:
+                if not pattern:
+                    continue
+                try:
+                    # DUR 테이블의 INGR_KOR_NAME (한글) 또는 INGR_ENG_NAME (영문) 모두 검색
+                    res = (
+                        client.table("dur")
+                        .select("INGR_KOR_NAME, INGR_ENG_NAME")
+                        .or_(f"INGR_KOR_NAME.ilike.%{pattern}%,INGR_ENG_NAME.ilike.%{pattern}%")
+                        .limit(5)
+                        .execute()
+                    )
+                    dur_results = res.data or []
+                    if dur_results:
+                        print(f"[성분명 폴백] DUR에서 '{pattern}' 발견 {len(dur_results)}건")
+                        # DUR에서 찾은 성분을 가상의 약품 정보로 변환
+                        for dur_item in dur_results:
+                            # 한글 또는 영문 이름 사용
+                            ingr_name = dur_item.get("INGR_KOR_NAME") or dur_item.get("INGR_ENG_NAME", "")
+                            if ingr_name and ingr_name not in seen_ids:
+                                # 가상의 약품 정보 생성 (DUR 테이블 정보만 사용)
+                                virtual_drug = {
+                                    "item_seq": f"DUR_{ingr_name}",
+                                    "item_name": f"[DUR 정보만 존재] {ingr_name}",
+                                    "entp_name": "정보 없음",
+                                    "main_item_ingr": ingr_name,
+                                    "efcy_qesitm": "(약품 정보 없음 - DUR 병용금지 정보만 제공)",
+                                    "_is_dur_only": True  # 표시: DUR 테이블에만 존재하는 데이터
+                                }
+                                all_results.append(virtual_drug)
+                                seen_ids.add(ingr_name)
+                except Exception as e:
+                    print(f"[DUR 폴백 오류] '{pattern}' 검색 중 오류: {e}")
+                    continue
+        
+        return all_results
+    
+    # 제품명 검색은 기존 방식
+    res = (
+        client.table("drugs")
+        .select("*")
+        .ilike(column, f"%{keyword}%")
+        .limit(SEARCH_LIMIT)
+        .execute()
+    )
+    return res.data or []
+    
+    # 제품명 검색은 기존 방식
     res = (
         client.table("drugs")
         .select("*")
@@ -51,12 +198,20 @@ def search_drugs(category: str, keyword: str) -> list[dict]:
 
 
 def format_drug_info(row: dict) -> str:
-    """drugs 테이블의 행 1건을 읽기 좋은 텍스트로 포맷합니다."""
+    """drugs 테이블의 행 1건을 읽기 좋은 텍스트로 포맷합니다. 
+    DUR 전용 데이터도 처리합니다."""
     lines = []
+    
+    # DUR 전용 데이터인 경우 특별 표시
+    if row.get("_is_dur_only"):
+        lines.append("[⚠️ 주의] 이 성분은 약품 정보는 없고, DUR 병용금지 정보만 존재합니다.")
+        lines.append("")
+    
     for key, label in FIELD_LABELS.items():
         value = (row.get(key) or "").strip()
-        if value:
+        if value and value != "(약품 정보 없음 - DUR 병용금지 정보만 제공)":
             lines.append(f"[{label}] {value}")
+    
     return "\n".join(lines)
 
 
@@ -123,14 +278,15 @@ def _normalize_ingredient_name(name: str) -> str:
 
 
 def search_dur_by_ingredient(ingredient_name: str) -> list[dict]:
-    """성분명으로 dur 테이블에서 병용금지 약물을 검색합니다."""
+    """성분명으로 dur 테이블에서 병용금지 약물을 검색합니다.
+    한글(INGR_KOR_NAME)과 영문(INGR_ENG_NAME) 모두 검색합니다."""
     client = _get_client()
 
-    # 원본 성분명으로 검색
+    # 원본 성분명으로 검색 (한글/영문 모두)
     res = (
         client.table("dur")
         .select("*")
-        .ilike("INGR_KOR_NAME", f"%{ingredient_name}%")
+        .or_(f"INGR_KOR_NAME.ilike.%{ingredient_name}%,INGR_ENG_NAME.ilike.%{ingredient_name}%")
         .eq("DEL_YN", False)
         .limit(20)
         .execute()
@@ -145,7 +301,7 @@ def search_dur_by_ingredient(ingredient_name: str) -> list[dict]:
             res2 = (
                 client.table("dur")
                 .select("*")
-                .ilike("INGR_KOR_NAME", f"%{normalized}%")
+                .or_(f"INGR_KOR_NAME.ilike.%{normalized}%,INGR_ENG_NAME.ilike.%{normalized}%")
                 .eq("DEL_YN", False)
                 .limit(20)
                 .execute()
@@ -171,7 +327,8 @@ def _get_dur_field(row: dict, field: str) -> str:
 
 
 def check_mutual_contraindication(ingredients: list[str]) -> list[dict]:
-    """검색된 약품들의 성분 간 상호 병용금지를 체크합니다."""
+    """검색된 약품들의 성분 간 상호 병용금지를 체크합니다.
+    한글과 영문 성분명을 모두 검색합니다."""
     if len(ingredients) < 2:
         return []
 
@@ -181,12 +338,12 @@ def check_mutual_contraindication(ingredients: list[str]) -> list[dict]:
     # 성분 쌍을 순회하며 병용금지 관계 확인
     for i, ingr1 in enumerate(ingredients):
         for ingr2 in ingredients[i + 1 :]:
-            # ingr1 → ingr2 방향 체크
+            # ingr1 → ingr2 방향 체크 (한글/영문 모두)
             res = (
                 client.table("dur")
                 .select("*")
-                .ilike("INGR_KOR_NAME", f"%{ingr1}%")
-                .ilike("MIXTURE_INGR_KOR_NAME", f"%{ingr2}%")
+                .or_(f"INGR_KOR_NAME.ilike.%{ingr1}%,INGR_ENG_NAME.ilike.%{ingr1}%")
+                .or_(f"MIXTURE_INGR_KOR_NAME.ilike.%{ingr2}%,MIXTURE_INGR_ENG_NAME.ilike.%{ingr2}%")
                 .eq("DEL_YN", False)
                 .limit(5)
                 .execute()
@@ -195,17 +352,17 @@ def check_mutual_contraindication(ingredients: list[str]) -> list[dict]:
                 for row in res.data:
                     mutual_warnings.append(
                         {
-                            "drug1": _get_dur_field(row, "INGR_KOR_NAME"),
-                            "drug2": _get_dur_field(row, "MIXTURE_INGR_KOR_NAME"),
+                            "drug1": _get_dur_field(row, "INGR_KOR_NAME") or _get_dur_field(row, "INGR_ENG_NAME"),
+                            "drug2": _get_dur_field(row, "MIXTURE_INGR_KOR_NAME") or _get_dur_field(row, "MIXTURE_INGR_ENG_NAME"),
                             "reason": _get_dur_field(row, "PROHBT_CONTENT"),
                         }
                     )
-            # ingr2 → ingr1 방향 체크 (역방향)
+            # ingr2 → ingr1 방향 체크 (역방향, 한글/영문 모두)
             res2 = (
                 client.table("dur")
                 .select("*")
-                .ilike("INGR_KOR_NAME", f"%{ingr2}%")
-                .ilike("MIXTURE_INGR_KOR_NAME", f"%{ingr1}%")
+                .or_(f"INGR_KOR_NAME.ilike.%{ingr2}%,INGR_ENG_NAME.ilike.%{ingr2}%")
+                .or_(f"MIXTURE_INGR_KOR_NAME.ilike.%{ingr1}%,MIXTURE_INGR_ENG_NAME.ilike.%{ingr1}%")
                 .eq("DEL_YN", False)
                 .limit(5)
                 .execute()
@@ -214,8 +371,8 @@ def check_mutual_contraindication(ingredients: list[str]) -> list[dict]:
                 for row in res2.data:
                     mutual_warnings.append(
                         {
-                            "drug1": _get_dur_field(row, "INGR_KOR_NAME"),
-                            "drug2": _get_dur_field(row, "MIXTURE_INGR_KOR_NAME"),
+                            "drug1": _get_dur_field(row, "INGR_KOR_NAME") or _get_dur_field(row, "INGR_ENG_NAME"),
+                            "drug2": _get_dur_field(row, "MIXTURE_INGR_KOR_NAME") or _get_dur_field(row, "MIXTURE_INGR_ENG_NAME"),
                             "reason": _get_dur_field(row, "PROHBT_CONTENT"),
                         }
                     )

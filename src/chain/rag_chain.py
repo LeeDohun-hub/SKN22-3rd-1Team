@@ -44,17 +44,56 @@ def _classify(question: str) -> dict:
     except json.JSONDecodeError:
         # JSON 파싱 실패 시 기본값: 제품명 검색
         parsed = {"category": "product_name", "keyword": question}
+    # Normalize keyword to a single string (LLM may return list or other types)
+    raw_keyword = parsed.get("keyword", question)
+    if isinstance(raw_keyword, list):
+        try:
+            keyword = ", ".join(str(k).strip() for k in raw_keyword if k is not None)
+        except Exception:
+            keyword = str(raw_keyword)
+    else:
+        keyword = str(raw_keyword).strip()
+
     return {
         "question": question,
         "category": parsed.get("category", "product_name"),
-        "keyword": parsed.get("keyword", question),
+        "keyword": keyword if keyword else question,
     }
 
 
 def _search(inputs: dict) -> dict:
     """분류 결과를 바탕으로 Supabase drugs 테이블을 검색하고 DUR 정보를 수집합니다."""
-    # 1. drugs 테이블 검색 (기존)
-    rows = search_drugs(inputs["category"], inputs["keyword"])
+    # 1. drugs 테이블 검색 (기존) — 키워드가 콤마로 구분된 다중 키워드일 수 있으므로 처리
+    raw_kw = inputs.get("keyword", "")
+    # build list of keywords
+    if isinstance(raw_kw, list):
+        keywords = [str(k).strip() for k in raw_kw if k]
+    else:
+        # split on comma if multiple provided
+        keywords = [k.strip() for k in str(raw_kw).split(",") if k.strip()]
+
+    all_rows = []
+    seen = set()
+    for kw in keywords:
+        rows = search_drugs(inputs["category"], kw)
+        for r in rows:
+            key = r.get("item_seq") or r.get("item_name")
+            if key and key not in seen:
+                all_rows.append(r)
+                seen.add(key)
+
+    rows = all_rows
+
+    # 디버그: 검색 정보 출력
+    print(f"[검색] 카테고리: {inputs['category']}, 키워드: {raw_kw}")
+    print(f"[검색 결과] {len(rows)}건 발견")
+    
+    # 검색 결과 없을 때 경고
+    if not rows:
+        print(f"[주의] '{inputs['keyword']}'에 대한 검색 결과가 없습니다.")
+        print(f"  → 데이터베이스에 해당 약품이 없을 수 있습니다.")
+        print(f"  → 식약처 의약품안전나라(https://edicavi.mfds.go.kr)에서 직접 확인하세요.")
+    
     context = format_search_results(rows)
 
     # 2. 검색된 약품에서 성분명 추출

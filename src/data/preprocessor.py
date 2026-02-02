@@ -31,12 +31,16 @@ APPROVAL_FIELD_LABELS = {
 
 
 def clean_text(text: Optional[str]) -> str:
-    """텍스트 필드를 정제합니다: HTML 태그 제거, 공백 정규화."""
+    """텍스트 필드를 정제합니다: HTML 태그 제거, 공백 정규화, 괄호 정리."""
     if text is None or str(text).strip() in ("", "None"):
         return ""
     text = str(text)
+    # HTML 태그 제거
     text = re.sub(r"</?[a-zA-Z][^>]*>", "", text)
+    # 다중 공백을 단일 공백으로 (줄바꿈 포함)
     text = re.sub(r"\s+", " ", text).strip()
+    # 불필요한 괄호 정리: )(  → ) (
+    text = re.sub(r"\)\s*\(", ") (", text)
     return text
 
 
