@@ -1,6 +1,7 @@
 """OpenFDA API 클라이언트 - 실시간 API 호출"""
+import re
 import requests
-from typing import Optional
+from urllib.parse import quote
 from src.config import OPENFDA_BASE_URL, OPENFDA_API_KEY, OPENFDA_LABEL_ENDPOINT, SEARCH_LIMIT
 
 
@@ -33,17 +34,41 @@ class OpenFDAClient:
         except requests.RequestException as e:
             return {"error": str(e), "results": []}
 
+    def _sanitize_search_term(self, term: str) -> str:
+        """검색어 정화 - 위험한 문자 제거"""
+        if not term or not isinstance(term, str):
+            return ""
+
+        # 길이 제한
+        term = term[:100].strip()
+
+        # 허용 문자만 유지 (영문, 숫자, 공백, 일부 안전한 특수문자)
+        term = re.sub(r'[^a-zA-Z0-9\s\-\.,\'\"]', '', term)
+
+        # 연속 공백 정리
+        term = re.sub(r'\s+', ' ', term).strip()
+
+        return term
+
     def search_drug_label(self, field: str, term: str) -> list[dict]:
         """
-        의약품 라벨 정보 검색
+        의약품 라벨 정보 검색 (보안 강화)
         - field: 검색 필드 (openfda.brand_name, openfda.generic_name, indications_and_usage 등)
         - term: 검색어
         """
+        # 검색어 정화
+        safe_term = self._sanitize_search_term(term)
+        if not safe_term:
+            return []
+
+        # URL 인코딩
+        encoded_term = quote(safe_term, safe='')
+
         # 검색어에 공백이 있으면 따옴표로 감싸기
-        if " " in term:
-            search_query = f'{field}:"{term}"'
+        if " " in safe_term:
+            search_query = f'{field}:"{encoded_term}"'
         else:
-            search_query = f"{field}:{term}"
+            search_query = f"{field}:{encoded_term}"
 
         url = self._build_url(OPENFDA_LABEL_ENDPOINT, search_query)
         data = self._make_request(url)

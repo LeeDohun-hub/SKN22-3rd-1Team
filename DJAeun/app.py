@@ -2,6 +2,7 @@
 import streamlit as st
 from src.chain.rag_chain import prepare_context, stream_answer
 from src.config import CLASSIFIER_MODEL, LLM_MODEL
+from src.security import validate_user_input
 
 # 페이지 설정
 st.set_page_config(
@@ -108,16 +109,23 @@ if "pending_question" in st.session_state:
     user_input = st.session_state.pending_question
     del st.session_state.pending_question
 
+    # 입력 검증
+    validation = validate_user_input(user_input)
+    if not validation.is_valid:
+        st.warning(f"입력 오류: {validation.error_message}")
+        st.stop()
+    safe_input = validation.sanitized_input
+
     # 사용자 메시지 추가
-    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.session_state.messages.append({"role": "user", "content": safe_input})
 
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(safe_input)
 
     # 답변 생성
     with st.chat_message("assistant"):
         with st.spinner("OpenFDA 데이터베이스 검색 중..."):
-            context_data = prepare_context(user_input)
+            context_data = prepare_context(safe_input)
 
         # 스트리밍 답변
         response_placeholder = st.empty()
@@ -146,16 +154,23 @@ if "pending_question" in st.session_state:
 
 # 채팅 입력
 if user_input := st.chat_input("약품이나 증상에 대해 질문하세요..."):
+    # 입력 검증
+    validation = validate_user_input(user_input)
+    if not validation.is_valid:
+        st.warning(f"입력 오류: {validation.error_message}")
+        st.stop()
+    safe_input = validation.sanitized_input
+
     # 사용자 메시지 추가
-    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.session_state.messages.append({"role": "user", "content": safe_input})
 
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(safe_input)
 
     # 답변 생성
     with st.chat_message("assistant"):
         with st.spinner("OpenFDA 데이터베이스 검색 중..."):
-            context_data = prepare_context(user_input)
+            context_data = prepare_context(safe_input)
 
         # 스트리밍 답변
         response_placeholder = st.empty()

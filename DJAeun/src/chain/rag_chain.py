@@ -1,5 +1,4 @@
 """분류 → OpenFDA API 호출 → 답변 생성 RAG 체인"""
-import json
 from typing import Generator
 from langchain_openai import ChatOpenAI
 
@@ -11,6 +10,10 @@ from src.api.openfda_client import (
 )
 from src.api.formatter import format_label_results
 from src.config import CLASSIFIER_MODEL, LLM_MODEL, LLM_TEMPERATURE, OPENAI_API_KEY
+from src.security.response_validator import ResponseValidator
+
+# 응답 검증기 인스턴스
+_response_validator = ResponseValidator()
 
 
 def _get_classifier() -> ChatOpenAI:
@@ -33,20 +36,21 @@ def _get_generator(streaming: bool = False) -> ChatOpenAI:
 
 
 def classify(question: str) -> dict:
-    """사용자 질문을 분류하여 category, keyword 반환"""
+    """사용자 질문을 분류하여 category, keyword 반환 (보안 강화)"""
     llm = _get_classifier()
     result = llm.invoke(CLASSIFIER_PROMPT.format_messages(question=question))
 
-    try:
-        parsed = json.loads(result.content.strip())
-    except json.JSONDecodeError:
-        # 파싱 실패 시 기본값: 브랜드명 검색
-        parsed = {"category": "brand_name", "keyword": question}
+    # 응답 검증 (프롬프트 인젝션 방어)
+    # 중요: JSON 파싱 실패 시 원본 question을 keyword로 사용하지 않음
+    classification = _response_validator.validate_classification(
+        result.content.strip(),
+        question
+    )
 
     return {
         "question": question,
-        "category": parsed.get("category", "brand_name"),
-        "keyword": parsed.get("keyword", question),
+        "category": classification.category,
+        "keyword": classification.keyword,
     }
 
 
