@@ -77,47 +77,77 @@
 
 ## 🔄 시스템 아키텍처
 
-사용자의 질문을 분석하여 적절한 API 엔드포인트를 호출하고, 결과를 종합하여 답변을 생성합니다.
+본 프로젝트는 **Router 패턴**을 기반으로 한 RAG 시스템이며, 보안 및 최적화 모듈이 통합되어 있습니다.
 
 ```mermaid
 graph TD
     %% Nodes
     User([👤 사용자])
-    App["🖥️ Streamlit App"]
+    App["🚀 app.py (Streamlit)"]
     
-    subgraph Core_Logic ["Core Logic"]
-        Classifier["🤖 의도 분류 (Nano)"]
-        Router{"분류 결과"}
-        Generator["✍️ 답변 생성 (Mini)"]
+    subgraph Security ["🛡️ Security Layer"]
+        Validator["input_validator.py"]
+    end
+
+    subgraph Logic ["⛓️ Logic Layer (src/chain)"]
+        Chain["rag_chain.py"]
+        OptChain["optimized_rag_chain.py"]
+        Prompts["prompts.py"]
     end
     
-    subgraph Data_Source ["External API"]
-        Client["📡 OpenFDA Client"]
-        API[("☁️ api.fda.gov")]
+    subgraph Optimization ["⚡ Optimization Layer"]
+        OptConfig["optimization_config.py"]
+        OptLogic["optimizations.py"]
+    end
+
+    subgraph Data ["📡 Data Layer (src/api)"]
+        Client["openfda_client.py"]
+        Formatter["formatter.py"]
+        API[("☁️ OpenFDA API")]
     end
 
     %% Flow
-    User -->|"질문 입력"| App
-    App -->|"Context 준비"| Classifier
-    Classifier --> Router
+    User -->|"1. 질문 입력"| App
+    App -->|"2. 입력 검증"| Validator
     
-    Router -->|"브랜드명"| Client
-    Router -->|"성분명"| Client
-    Router -->|"효능/증상"| Client
+    Validator -->|"3. 유효한 입력"| App
+    App -->|"4. 체인 실행"| Chain
+    
+    %% Standard Chain Flow
+    Chain -->|"분류/생성 요청"| Prompts
+    Chain -->|"검색 요청"| Client
+    
+    %% Optimization Flow (Implicit in Optimized Chain)
+    OptChain -.->|"설정 로드"| OptConfig
+    OptChain -.->|"최적화 적용"| OptLogic
+    OptLogic -.->|"Re-ranking/Filtering"| Client
     
     Client -->|"HTTP GET"| API
     API -->|"JSON 응답"| Client
-    Client -->|"Formatted Text"| Generator
+    Client -->|"포매팅"| Formatter
     
-    Generator -->|"최종 답변"| App
+    Formatter -->|"Context"| Chain
+    Chain -->|"최종 답변"| App
     App -->|"화면 출력"| User
 
     %% Styles
     style App fill:#f9f,stroke:#333
-    style Classifier fill:#ff9,stroke:#333
-    style Generator fill:#9ff,stroke:#333
-    style API fill:#eee,stroke:#999
+    style Security fill:#f99,stroke:#333
+    style Logic fill:#9f9,stroke:#333
+    style Data fill:#9ff,stroke:#333
+    style Optimization fill:#ff9,stroke:#333
 ```
+
+### 🧩 주요 모듈 상세 설명
+
+- **애플리케이션 계층 (`app.py`)**: 사용자 인터페이스 메인 진입점입니다. `src.security`를 통해 입력을 검증하고, `rag_chain`을 통해 답변을 생성합니다.
+- **보안 계층 (`src/security`)**: `input_validator.py`를 통한 Prompt Injection 및 과도한 길이, 특수문자 등을 필터링합니다.
+- **로직 및 최적화 계층 (`src`)**:
+  - `chain/rag_chain.py`: Router 패턴 기반 RAG 파이프라인.
+  - `chain/optimized_rag_chain.py`: 검색 최적화 및 Re-ranking 적용.
+  - `optimization_config.py`: 실험을 위한 다양한 파라미터 정의.
+  - `optimizations.py`: 실제 최적화 로직 수행.
+- **데이터 계층 (`src/api`)**: OpenFDA REST API와 통신 클라이언트 및 응답 데이터 포매터.
 
 ---
 
