@@ -65,6 +65,94 @@ def _truncate_ingredient_section(answer: str) -> str:
 # 4. 세션 상태 초기화
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "disclaimer_accepted" not in st.session_state:
+    st.session_state.disclaimer_accepted = False
+
+
+# 면책동의 다이얼로그
+@st.dialog(title="⚠️ 면책사항 동의", width="large")
+def disclaimer_dialog():
+    """첫 진입 시 표시되는 면책사항 동의 팝업"""
+    st.markdown(
+        """
+
+# **서비스 이용 약관 및 법적 면책 고지**
+
+### 본 서비스는 OpenFDA 공공데이터를 기반으로 정보를 제공하는 데이터 검색 보조 도구입니다.
+
+### 사용자는 본 서비스를 이용함과 동시에 아래의 모든 사항에 **동의**한 것으로 간주됩니다.
+
+---
+
+## **1. 의료 행위의 부인**
+
+### 본 시스템이 제공하는 모든 정보는 일반적인 정보 제공만을 목적으로 하며, 의학적 진단, 치료, 처방 또는 복약 지도를 대신할 수 없습니다.
+
+> **AI가 생성한 답변을 근거로 스스로 질병을 진단하거나 약물을 선택하여 복용하지 마십시오. 이는 오남용으로 인한 심각한 부작용을 초래할 수 있습니다.**
+
+## **2. 정보의 정확성 및 최신성 보장 불가**
+
+### 본 서비스는 생성형 AI(RAG) 기술을 사용합니다.
+
+### AI의 특성상 환각 현상(Hallucination)이 발생할 수 있으며, OpenFDA 데이터의 내용과 다른 부정확하거나 왜곡된 정보를 제공할 가능성이 항상 존재합니다.
+
+> 데이터베이스 업데이트 지연으로 인해 최신 의약품 정보나 허가 취소 사항이 반영되지 않았을 수 있습니다.
+
+> 정보의 최종 확인은 반드시 공식적인 FDA 웹사이트(fda.gov) 또는 전문가를 통해 확인하시기 바랍니다.
+
+## **3. 책임의 제한**
+
+### 서비스 운영 주체는 본 서비스가 제공한 정보의 오류, 누락, 지연으로 인해 발생하는 어떠한 형태의 직접적·간접적·결과적 손해(신체적 부상, 질환의 악화, 경제적 손실 등)에 대해서도 법적 책임을 지지 않습니다.
+
+> **사용자가 본 시스템의 정보를 신뢰하여 행한 모든 결정 및 행동에 대한 책임은 전적으로 사용자 본인에게 있습니다.**
+
+## **4. 전문가 상담 필수**
+
+### 증상이 있거나 의약품 성분에 대해 궁금한 점이 있을 경우, 반드시 전문의 또는 약사와 상담하십시오.
+
+### 응급 상황이 발생한 경우, 본 시스템에 의존하지 말고 즉시 응급 의료 기관(911 등)에 연락하십시오.
+
+## **5. 데이터 출처 및 오용 금지**
+
+### 본 서비스는 OpenFDA의 공공데이터를 인용하나, FDA가 본 서비스의 운영이나 결과물을 보증하는 것은 아닙니다.
+
+> 사용자는 본 서비스의 결과를 상업적으로 이용하거나, 타인에게 의학적 권고로 전달하여 발생하는 모든 법적 문제에 대해 단독으로 책임을 집니다.
+
+---
+
+## **6. 확인 및 동의**
+
+본인은 위 면책 고지 사항을 충분히 숙지하였으며, 본 서비스가 제공하는 정보는 참고용일 뿐 의료 전문가의 조언을 대체할 수 없음에 동의합니다.
+
+또한, 이를 어기고 발생한 모든 결과에 대해 서비스 제공자에게 책임을 묻지 않을 것을 서약합니다.
+        """
+    )
+    
+    # 체크박스 상태 확인
+    checked = st.checkbox("**내용을 꼼꼼히 확인 했습니다.**")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("✅ 동의합니다", type="primary", use_container_width=True, disabled=not checked):
+            st.session_state.disclaimer_accepted = True
+            st.rerun()
+    with col2:
+        if st.button("❌ 거부합니다", use_container_width=True):
+            # 거부 시 Google로 리다이렉트
+            st.markdown(
+                """
+                <meta http-equiv="refresh" content="0; url=https://www.google.com">
+                <script>window.location.href = 'https://www.google.com';</script>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.stop()
+
+
+# 면책동의 확인 - 동의하지 않으면 팝업 표시 후 중단
+if not st.session_state.disclaimer_accepted:
+    disclaimer_dialog()
+    st.stop()
 
 # 5. 사이드바 구성 (app.py의 상세 정보 포함)
 with st.sidebar:
@@ -87,10 +175,8 @@ with st.sidebar:
 
     example_questions = [
         "Tylenol은 어떤 약인가요?",
-        "ibuprofen 복용 시 주의사항은?",
-        "두통약 추천해주세요",
-        "aspirin과 함께 먹으면 안 되는 약은?",
-        "acetaminophen 임산부 복용 가능한가요?",
+        "이부프로펜은 어떤 성분인가요??",
+        "머리 아플때는 어떤 성분이 도움이 되나요??"
     ]
 
     for q in example_questions:
