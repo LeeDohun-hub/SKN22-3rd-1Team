@@ -114,7 +114,7 @@ def evaluate_config(results: List[Dict], config_name: str) -> Dict:
             embeddings=eval_embeddings,
         )
         
-        # EvaluationResult에서 점수 추출 - 50개 전체 평균 계산
+        # EvaluationResult에서 점수 추출 - 100개 전체 평균 계산
         try:
             df = eval_result.to_pandas()
             result_dict = {}

@@ -50,7 +50,7 @@ DJAeun/
 │       └── optimized_rag_chain.py  # 최적화된 RAG 체인
 ├── compare_optimizations.py        # 8개 버전 일괄 비교 평가
 ├── evaluate_single.py              # 단일 버전 평가
-├── test_dataset.json               # 50개 테스트 케이스
+├── test_dataset.json               # 100개 테스트 케이스
 └── requirements.txt                # 업데이트된 의존성
 ```
 
@@ -76,7 +76,7 @@ pip install -r requirements.txt
 python compare_optimizations.py
 ```
 
-**예상 소요 시간**: 약 1-2시간 (50개 질문 × 8개 버전)
+**예상 소요 시간**: 약 2-4시간 (100개 질문 × 8개 버전)
 
 **출력 결과**:
 - 터미널: 각 버전별 진행 상태 및 최종 비교 테이블
@@ -258,7 +258,7 @@ for config, metrics in data['results'].items():
 
 **GPT-4 사용 시 API 비용 증가**:
 - GPT-4o: GPT-4o-mini 대비 약 15배 비용
-- 50개 테스트 × 4개 GPT-4 버전 = 약 200회 호출
+- 100개 테스트 × 4개 GPT-4 버전 = 약 400회 호출
 - 예상 비용: 약 $1-2 (테스트 전체)
 
 **권장사항**:

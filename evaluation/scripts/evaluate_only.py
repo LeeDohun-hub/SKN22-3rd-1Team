@@ -119,7 +119,7 @@ def main():
         )
         print_success("평가 완료!")
         
-        # EvaluationResult에서 점수 추출 - 50개 전체 평균 계산
+        # EvaluationResult에서 점수 추출 - 100개 전체 평균 계산
         try:
             df = eval_result.to_pandas()
             # 각 metric 열의 평균을 계산
