@@ -87,10 +87,8 @@ with st.sidebar:
 
     example_questions = [
         "Tylenol은 어떤 약인가요?",
-        "ibuprofen 복용 시 주의사항은?",
-        "두통약 추천해주세요",
-        "aspirin과 함께 먹으면 안 되는 약은?",
-        "acetaminophen 임산부 복용 가능한가요?",
+        "이부프로펜은 어떤 성분인가요??",
+        "머리 아플때는 어떤 성분이 도움이 되나요??"
     ]
 
     for q in example_questions:
